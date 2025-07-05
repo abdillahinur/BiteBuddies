@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Chrome as Home, MapPin, Users, User, Clock } from 'lucide-react-native';
+import { Chrome as Home, MapPin, Users, User, Clock, Navigation } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
 
 export default function TabLayout() {

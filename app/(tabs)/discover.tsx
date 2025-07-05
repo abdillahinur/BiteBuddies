@@ -1,13 +1,29 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Filter, Star, MapPin, Clock, ChartBar as BarChart3, Users } from 'lucide-react-native';
-import { useState } from 'react';
+import { Search, Filter, Star, MapPin, Clock, ChartBar as BarChart3, Users, Maximize2, Minimize2 } from 'lucide-react-native';
+import { useState, useRef } from 'react';
+import { router } from 'expo-router';
 import RestaurantCard from '@/components/RestaurantCard';
+import BottomSheet from '@gorhom/bottom-sheet';
+import Slider from '@react-native-community/slider';
 
 export default function DiscoverScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [scoreView, setScoreView] = useState<'user' | 'group'>('user');
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const [radius, setRadius] = useState(1000);
+  const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
+  const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
+  const [mapExpanded, setMapExpanded] = useState(false);
+
+  const openFindNearby = () => {
+    bottomSheetRef.current?.snapToIndex(0);
+  };
+
+  const closeFindNearby = () => {
+    bottomSheetRef.current?.close();
+  };
 
   const filters = ['All', 'Nearby', 'Trending', 'New', 'Top Rated'];
 
@@ -110,6 +126,37 @@ export default function DiscoverScreen() {
     },
   ];
 
+  const cuisines = [
+    'Italian', 'Chinese', 'Japanese', 'Indian', 'Mexican', 'Thai',
+    'Mediterranean', 'American', 'French', 'Korean', 'Vietnamese', 'Greek'
+  ];
+  const dietaryRestrictions = [
+    'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher',
+    'Dairy-Free', 'Nut-Free', 'Low-Carb', 'Keto-Friendly'
+  ];
+
+  const toggleCuisine = (cuisine: string) => {
+    setSelectedCuisines(prev =>
+      prev.includes(cuisine)
+        ? prev.filter(c => c !== cuisine)
+        : [...prev, cuisine]
+    );
+  };
+  const toggleDietary = (dietary: string) => {
+    setSelectedDietary(prev =>
+      prev.includes(dietary)
+        ? prev.filter(d => d !== dietary)
+        : [...prev, dietary]
+    );
+  };
+
+  // Filter restaurants by cuisine/dietary (mock logic)
+  const filteredRestaurants = restaurants.filter(r => {
+    const cuisineMatch = selectedCuisines.length === 0 || selectedCuisines.includes(r.cuisine);
+    const dietaryMatch = selectedDietary.length === 0 || (r.tags && selectedDietary.some(d => r.tags.includes(d)));
+    return cuisineMatch && dietaryMatch;
+  });
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -186,9 +233,9 @@ export default function DiscoverScreen() {
         </ScrollView>
 
         {/* Map Button */}
-        <TouchableOpacity style={styles.mapButton}>
+        <TouchableOpacity style={styles.mapButton} onPress={openFindNearby}>
           <MapPin size={20} color="#FF6B6B" />
-          <Text style={styles.mapButtonText}>View on Map</Text>
+          <Text style={styles.mapButtonText}>Find Nearby</Text>
         </TouchableOpacity>
 
         {/* Restaurant List */}
@@ -202,6 +249,108 @@ export default function DiscoverScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* Bottom Sheet for Find Nearby */}
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={["70%", "95%"]}
+        enablePanDownToClose
+        onClose={closeFindNearby}
+      >
+        <View style={{ flex: 1 }}>
+          {/* Mock Map View */}
+          <View style={{ flex: 1, minHeight: 250, backgroundColor: '#E8F4FD', borderRadius: 16, margin: 16, position: 'relative' }}>
+            <View style={{ padding: 20, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+              <MapPin size={24} color="#FF6B6B" />
+              <Text style={{ fontSize: 18, color: '#374151', fontFamily: 'Inter-SemiBold', marginTop: 8 }}>Interactive Map View</Text>
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#FF6B6B', marginTop: 20 }} />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>You are here</Text>
+              
+              {/* Restaurant Markers */}
+              {filteredRestaurants.map((restaurant, index) => (
+                <View 
+                  key={restaurant.id} 
+                  style={{ 
+                    position: 'absolute', 
+                    left: 50 + (index * 60), 
+                    top: 100 + (index * 40),
+                    alignItems: 'center'
+                  }}
+                >
+                  <View style={{ backgroundColor: '#FF6B6B', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Text style={{ color: 'white', fontSize: 12, fontFamily: 'Inter-Bold' }}>{restaurant.rating}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: '#374151', marginTop: 2, maxWidth: 60, textAlign: 'center' }}>{restaurant.name}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          
+          {/* Radius Slider */}
+          <View style={{ padding: 16 }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>Search Radius: {radius}m</Text>
+            <Slider
+              style={{ width: '100%', height: 40 }}
+              minimumValue={100}
+              maximumValue={5000}
+              value={radius}
+              onValueChange={setRadius}
+              minimumTrackTintColor="#FF6B6B"
+              maximumTrackTintColor="#E5E7EB"
+              thumbTintColor="#FF6B6B"
+            />
+            
+            {/* Cuisine Filters */}
+            <Text style={{ fontWeight: 'bold', fontSize: 14, marginTop: 16 }}>Cuisine Types</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+              {cuisines.map(cuisine => (
+                <TouchableOpacity
+                  key={cuisine}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: selectedCuisines.includes(cuisine) ? '#FF6B6B' : '#F3F4F6',
+                    marginRight: 8,
+                  }}
+                  onPress={() => toggleCuisine(cuisine)}
+                >
+                  <Text style={{ color: selectedCuisines.includes(cuisine) ? 'white' : '#374151', fontWeight: 'bold' }}>{cuisine}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            {/* Dietary Filters */}
+            <Text style={{ fontWeight: 'bold', fontSize: 14, marginTop: 8 }}>Dietary Restrictions</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
+              {dietaryRestrictions.map(dietary => (
+                <TouchableOpacity
+                  key={dietary}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: selectedDietary.includes(dietary) ? '#FF6B6B' : '#F3F4F6',
+                    marginRight: 8,
+                  }}
+                  onPress={() => toggleDietary(dietary)}
+                >
+                  <Text style={{ color: selectedDietary.includes(dietary) ? 'white' : '#374151', fontWeight: 'bold' }}>{dietary}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            {/* Expandable/Draggable Restaurant List */}
+            <Text style={{ fontWeight: 'bold', fontSize: 16, marginVertical: 8 }}>Nearby Restaurants</Text>
+            <ScrollView style={{ maxHeight: 200 }}>
+              {filteredRestaurants.map((restaurant) => (
+                <RestaurantCard key={restaurant.id} restaurant={restaurant} showGroupScore={scoreView === 'group'} />
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }

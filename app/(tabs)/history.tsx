@@ -1,4 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Modal, Platform } from 'react-native';
+import { useRef } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Search, Star, Calendar, MapPin, CreditCard as Edit3, Trash2, Camera } from 'lucide-react-native';
 import { useState } from 'react';
@@ -10,7 +12,7 @@ export default function HistoryScreen() {
 
   const filters = ['All', 'Recent', 'Favorites', 'To Review'];
 
-  const diningHistory = [
+  const [diningHistory, setDiningHistory] = useState([
     {
       id: '1',
       restaurant: {
@@ -21,11 +23,11 @@ export default function HistoryScreen() {
       },
       visitDate: '2024-01-10',
       myRating: {
-        overall: 9.1,
-        food: 9.5,
-        service: 8.8,
-        ambiance: 9.0,
-        value: 8.5,
+        overall: 9,
+        food: 9,
+        service: 8,
+        ambiance: 9,
+        value: 8,
       },
       review: 'Absolutely incredible omakase experience. The chef was amazing and every piece was perfect.',
       wouldRecommend: true,
@@ -43,11 +45,11 @@ export default function HistoryScreen() {
       },
       visitDate: '2024-01-08',
       myRating: {
-        overall: 6.8,
-        food: 7.0,
-        service: 7.5,
-        ambiance: 8.5,
-        value: 5.0,
+        overall: 6,
+        food: 7,
+        service: 7,
+        ambiance: 8,
+        value: 5,
       },
       review: 'Beautiful atmosphere but overpriced for the portion sizes. Service was good though.',
       wouldRecommend: false,
@@ -65,11 +67,11 @@ export default function HistoryScreen() {
       },
       visitDate: '2024-01-05',
       myRating: {
-        overall: 8.5,
-        food: 8.8,
-        service: 8.0,
-        ambiance: 8.7,
-        value: 8.5,
+        overall: 8,
+        food: 8,
+        service: 8,
+        ambiance: 8,
+        value: 8,
       },
       review: 'Fresh ingredients and healthy options. Perfect for lunch meetings.',
       wouldRecommend: true,
@@ -77,7 +79,127 @@ export default function HistoryScreen() {
       sessionName: null,
       images: ['https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=200'],
     },
-  ];
+  ]);
+
+  // State for new restaurant form
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  type RatingKey = 'overall' | 'food' | 'service' | 'ambiance' | 'value';
+
+  type NewRestaurant = {
+    name: string;
+    cuisine: string;
+    visitDate: string;
+    overall: string;
+    food: string;
+    service: string;
+    ambiance: string;
+    value: string;
+    review: string;
+    wouldRecommend: boolean;
+    location: string;
+    images: string[];
+  };
+
+  const emptyRestaurant: NewRestaurant = {
+    name: '',
+    cuisine: '',
+    visitDate: '',
+    overall: '',
+    food: '',
+    service: '',
+    ambiance: '',
+    value: '',
+    review: '',
+    wouldRecommend: true,
+    location: '',
+    images: [],
+  };
+
+  const [newRestaurant, setNewRestaurant] = useState<NewRestaurant>({ ...emptyRestaurant });
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+
+  const handleSaveRestaurant = () => {
+    if (editIndex !== null) {
+      // Edit existing
+      setDiningHistory(prev => {
+        const updated = [...prev];
+        updated[editIndex] = {
+          ...updated[editIndex],
+          restaurant: {
+            name: newRestaurant.name,
+            cuisine: newRestaurant.cuisine,
+            image: newRestaurant.images[0] || 'https://images.pexels.com/photos/357573/pexels-photo-357573.jpeg?auto=compress&cs=tinysrgb&w=400',
+            location: newRestaurant.location || 'Unknown',
+          },
+          visitDate: newRestaurant.visitDate || new Date().toISOString().slice(0, 10),
+          myRating: {
+            overall: parseFloat(newRestaurant.overall) || 0,
+            food: parseFloat(newRestaurant.food) || 0,
+            service: parseFloat(newRestaurant.service) || 0,
+            ambiance: parseFloat(newRestaurant.ambiance) || 0,
+            value: parseFloat(newRestaurant.value) || 0,
+          },
+          review: newRestaurant.review,
+          wouldRecommend: newRestaurant.wouldRecommend,
+          // sessionId, sessionName, images remain unchanged or can be updated as needed
+        };
+        return updated;
+      });
+    } else {
+      // Add new
+      setDiningHistory([
+        {
+          id: (diningHistory.length + 1).toString(),
+          restaurant: {
+            name: newRestaurant.name,
+            cuisine: newRestaurant.cuisine,
+            image: newRestaurant.images[0] || 'https://images.pexels.com/photos/357573/pexels-photo-357573.jpeg?auto=compress&cs=tinysrgb&w=400',
+            location: newRestaurant.location || 'Unknown',
+          },
+          visitDate: newRestaurant.visitDate || new Date().toISOString().slice(0, 10),
+          myRating: {
+            overall: parseFloat(newRestaurant.overall) || 0,
+            food: parseFloat(newRestaurant.food) || 0,
+            service: parseFloat(newRestaurant.service) || 0,
+            ambiance: parseFloat(newRestaurant.ambiance) || 0,
+            value: parseFloat(newRestaurant.value) || 0,
+          },
+          review: newRestaurant.review,
+          wouldRecommend: newRestaurant.wouldRecommend,
+          sessionId: null,
+          sessionName: null,
+          images: newRestaurant.images,
+        },
+        ...diningHistory,
+      ]);
+    }
+    setShowAddModal(false);
+    setNewRestaurant({ ...emptyRestaurant });
+    setEditIndex(null);
+  };
+
+  const handleEdit = (entry: any, index: number) => {
+    setEditIndex(index);
+    setNewRestaurant({
+      name: entry.restaurant.name,
+      cuisine: entry.restaurant.cuisine,
+      visitDate: entry.visitDate,
+      overall: entry.myRating.overall.toString(),
+      food: entry.myRating.food.toString(),
+      service: entry.myRating.service.toString(),
+      ambiance: entry.myRating.ambiance.toString(),
+      value: entry.myRating.value.toString(),
+      review: entry.review,
+      wouldRecommend: entry.wouldRecommend,
+      location: entry.restaurant.location,
+      images: entry.images || [],
+    });
+    setShowAddModal(true);
+  };
+
+  const handleDelete = (index: number) => {
+    setDiningHistory(prev => prev.filter((_, i) => i !== index));
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 8.5) return '#10B981';
@@ -173,14 +295,19 @@ export default function HistoryScreen() {
 
         {/* History List */}
         <View style={styles.historyList}>
-          {diningHistory.map((entry) => (
+          {diningHistory.map((entry, idx) => (
             <TouchableOpacity key={entry.id} style={styles.historyCard}>
               <Image source={{ uri: entry.restaurant.image }} style={styles.restaurantImage} />
-              
-              {/* Score Badge */}
-              <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(entry.myRating.overall) }]}>
-                <Text style={styles.scoreBadgeText}>{entry.myRating.overall.toFixed(1)}</Text>
-              </View>
+              {/* Score Badge (average of all scores) */}
+              {(() => {
+                const ratings = [entry.myRating.food, entry.myRating.service, entry.myRating.ambiance, entry.myRating.value, entry.myRating.overall];
+                const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+                return (
+                  <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(avg) }]}> 
+                    <Text style={styles.scoreBadgeText}>{avg.toFixed(1)}</Text>
+                  </View>
+                );
+              })()}
 
               <View style={styles.historyInfo}>
                 <View style={styles.historyHeader}>
@@ -189,10 +316,10 @@ export default function HistoryScreen() {
                     <Text style={styles.cuisine}>{entry.restaurant.cuisine}</Text>
                   </View>
                   <View style={styles.historyActions}>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => handleEdit(entry, idx)}>
                       <Edit3 size={16} color="#6B7280" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => handleDelete(idx)}>
                       <Trash2 size={16} color="#DC2626" />
                     </TouchableOpacity>
                   </View>
@@ -216,12 +343,20 @@ export default function HistoryScreen() {
                 {/* Rating Breakdown */}
                 <View style={styles.ratingBreakdown}>
                   <View style={styles.overallRating}>
-                    <Text style={[styles.overallScore, { color: getScoreColor(entry.myRating.overall) }]}>
-                      {entry.myRating.overall.toFixed(1)}/10
-                    </Text>
-                    <Text style={styles.scoreLabel}>
-                      {getScoreLabel(entry.myRating.overall)}
-                    </Text>
+                    {(() => {
+                      const ratings = [entry.myRating.food, entry.myRating.service, entry.myRating.ambiance, entry.myRating.value, entry.myRating.overall];
+                      const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+                      return (
+                        <>
+                          <Text style={[styles.overallScore, { color: getScoreColor(avg) }]}> 
+                            {avg.toFixed(1)}/10
+                          </Text>
+                          <Text style={styles.scoreLabel}>
+                            {getScoreLabel(avg)}
+                          </Text>
+                        </>
+                      );
+                    })()}
                   </View>
                   
                   <View style={styles.categoryRatings}>
@@ -292,7 +427,7 @@ export default function HistoryScreen() {
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Add Restaurant</Text>
               <TouchableOpacity>
-                <Text style={styles.modalSave}>Save</Text>
+                <Text style={styles.modalSave} onPress={handleSaveRestaurant}>Save</Text>
               </TouchableOpacity>
             </View>
             
@@ -305,6 +440,8 @@ export default function HistoryScreen() {
                   style={styles.textInput}
                   placeholder="Enter restaurant name"
                   placeholderTextColor="#9CA3AF"
+                  value={newRestaurant.name}
+                  onChangeText={text => setNewRestaurant(r => ({ ...r, name: text }))}
                 />
               </View>
 
@@ -314,26 +451,90 @@ export default function HistoryScreen() {
                   style={styles.textInput}
                   placeholder="e.g., Italian, Japanese, Mexican"
                   placeholderTextColor="#9CA3AF"
+                  value={newRestaurant.cuisine}
+                  onChangeText={text => setNewRestaurant(r => ({ ...r, cuisine: text }))}
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Visit Date</Text>
-                <TouchableOpacity style={styles.dateInput}>
-                  <Calendar size={20} color="#6B7280" />
-                  <Text style={styles.dateText}>Select date</Text>
-                </TouchableOpacity>
+                {Platform.OS === 'web' ? (
+                  <View style={[styles.textInput, { flexDirection: 'row', alignItems: 'center', paddingVertical: 0 }]}> 
+                    <Calendar size={20} color="#6B7280" />
+                    <input
+                      type="date"
+                      style={{
+                        marginLeft: 8,
+                        border: 'none',
+                        outline: 'none',
+                        fontSize: 16,
+                        color: newRestaurant.visitDate ? '#111827' : '#9CA3AF',
+                        backgroundColor: 'transparent',
+                        fontFamily: 'Inter-Regular',
+                        flex: 1,
+                        height: 40,
+                      }}
+                      value={newRestaurant.visitDate}
+                      onChange={e => setNewRestaurant(r => ({ ...r, visitDate: e.target.value }))}
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.textInput, { flexDirection: 'row', alignItems: 'center' }]}
+                      onPress={() => setShowDatePicker(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Calendar size={20} color="#6B7280" />
+                      <Text style={{ marginLeft: 8, color: newRestaurant.visitDate ? '#111827' : '#9CA3AF', fontSize: 16 }}>
+                        {newRestaurant.visitDate ? new Date(newRestaurant.visitDate).toLocaleDateString() : 'Select date'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={newRestaurant.visitDate ? new Date(newRestaurant.visitDate) : new Date()}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={(event, selectedDate) => {
+                          if (Platform.OS === 'android') {
+                            setShowDatePicker(false);
+                          }
+                          if (selectedDate) {
+                            setNewRestaurant(r => ({ ...r, visitDate: selectedDate.toISOString().slice(0, 10) }));
+                          }
+                        }}
+                      />
+                    )}
+                  </>
+                )}
               </View>
 
-              <Text style={styles.modalSectionTitle}>Your Rating</Text>
-              
-              {['Overall', 'Food Quality', 'Service', 'Ambiance', 'Value'].map((category) => (
-                <View key={category} style={styles.ratingInput}>
-                  <Text style={styles.ratingLabel}>{category}</Text>
-                  <View style={styles.ratingStars}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
-                      <TouchableOpacity key={star} style={styles.starButton}>
-                        <Text style={styles.starNumber}>{star}</Text>
+              {([
+                { key: 'overall', label: 'Overall' },
+                { key: 'food', label: 'Food Quality' },
+                { key: 'service', label: 'Service' },
+                { key: 'ambiance', label: 'Ambiance' },
+                { key: 'value', label: 'Value' },
+              ] as { key: RatingKey; label: string }[]).map(({ key, label }) => (
+                <View key={key} style={styles.ratingInput}>
+                  <Text style={styles.ratingLabel}>{label}</Text>
+                  <View style={{ flexDirection: 'row', gap: 4, marginTop: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                    {[1,2,3,4,5,6,7,8,9,10].map((num) => (
+                      <TouchableOpacity
+                        key={num}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: parseInt(newRestaurant[key]) === num ? '#FF6B6B' : '#F3F4F6',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          borderWidth: parseInt(newRestaurant[key]) === num ? 2 : 1,
+                          borderColor: parseInt(newRestaurant[key]) === num ? '#FF6B6B' : '#E5E7EB',
+                        }}
+                        onPress={() => setNewRestaurant(r => ({ ...r, [key]: num.toString() }))}
+                      >
+                        <Text style={{ color: parseInt(newRestaurant[key]) === num ? 'white' : '#6B7280', fontWeight: 'bold' }}>{num}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -348,15 +549,142 @@ export default function HistoryScreen() {
                   placeholderTextColor="#9CA3AF"
                   multiline
                   numberOfLines={4}
+                  value={newRestaurant.review}
+                  onChangeText={text => setNewRestaurant(r => ({ ...r, review: text }))}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Add Photos</Text>
-                <TouchableOpacity style={styles.photoButton}>
-                  <Camera size={24} color="#6B7280" />
-                  <Text style={styles.photoButtonText}>Add Photos</Text>
-                </TouchableOpacity>
+                <Text style={styles.inputLabel}>Would Recommend?</Text>
+                <View style={{ flexDirection: 'row', marginTop: 8, marginBottom: 8, alignItems: 'center', justifyContent: 'center' }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      backgroundColor: newRestaurant.wouldRecommend ? '#10B981' : '#F3F4F6',
+                      paddingVertical: 12,
+                      borderTopLeftRadius: 20,
+                      borderBottomLeftRadius: 20,
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: newRestaurant.wouldRecommend ? '#10B981' : '#E5E7EB',
+                    }}
+                    onPress={() => setNewRestaurant(r => ({ ...r, wouldRecommend: true }))}
+                  >
+                    <Text style={{ color: newRestaurant.wouldRecommend ? 'white' : '#6B7280', fontFamily: 'Inter-SemiBold', fontSize: 16 }}>Yes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      backgroundColor: !newRestaurant.wouldRecommend ? '#DC2626' : '#F3F4F6',
+                      paddingVertical: 12,
+                      borderTopRightRadius: 20,
+                      borderBottomRightRadius: 20,
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: !newRestaurant.wouldRecommend ? '#DC2626' : '#E5E7EB',
+                    }}
+                    onPress={() => setNewRestaurant(r => ({ ...r, wouldRecommend: false }))}
+                  >
+                    <Text style={{ color: !newRestaurant.wouldRecommend ? 'white' : '#6B7280', fontFamily: 'Inter-SemiBold', fontSize: 16 }}>No</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Location</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g., Downtown, Midtown"
+                  placeholderTextColor="#9CA3AF"
+                  value={newRestaurant.location}
+                  onChangeText={text => setNewRestaurant(r => ({ ...r, location: text }))}
+                />
+              </View>
+
+              {/* Image Upload Section */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Upload Photos</Text>
+                {Platform.OS === 'web' ? (
+                  (() => {
+                    // Use a ref to trigger the hidden file input
+                    const fileInputId = 'file-upload-input';
+                    return (
+                      <>
+                        <input
+                          id={fileInputId}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          style={{ display: 'none' }}
+                          onChange={e => {
+                            const files = e.target.files;
+                            if (files) {
+                              const fileArray = Array.from(files);
+                              Promise.all(
+                                fileArray.map(file => {
+                                  return new Promise<string>((resolve, reject) => {
+                                    const reader = new FileReader();
+                                    reader.onload = () => resolve(reader.result as string);
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(file);
+                                  });
+                                })
+                              ).then(imgs => {
+                                setNewRestaurant(r => ({ ...r, images: imgs }));
+                              });
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'white',
+                            borderRadius: 12,
+                            padding: '16px',
+                            borderWidth: 2,
+                            borderColor: '#E5E7EB',
+                            borderStyle: 'dashed',
+                            gap: 8,
+                            cursor: 'pointer',
+                            fontFamily: 'Inter-Medium',
+                            color: '#6B7280',
+                            fontSize: 14,
+                            marginBottom: 12,
+                          }}
+                          onClick={() => {
+                            const input = document.getElementById(fileInputId) as HTMLInputElement;
+                            if (input) input.click();
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
+                            <svg width="20" height="20" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="13" r="3"/><path d="M5 7h.01M21 15V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="m21 21-4.35-4.35"/></svg>
+                          </span>
+                          Add Photos
+                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          {newRestaurant.images && newRestaurant.images.map((img: string, idx: number) => (
+                            <img key={idx} src={img} alt="preview" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover', marginRight: 8, marginBottom: 8 }} />
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()
+                ) : (
+                  <TouchableOpacity
+                    style={styles.photoButton}
+                    onPress={() => {
+                      // TODO: Connect to native image picker (e.g., expo-image-picker)
+                      alert('Image picker not implemented for native. Use expo-image-picker or similar.');
+                    }}
+                  >
+                    <Camera size={20} color="#6B7280" />
+                    <Text style={styles.photoButtonText}>Add Photos</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
           </SafeAreaView>

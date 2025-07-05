@@ -1,0 +1,351 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Search, Filter, Star, MapPin, Clock, ChartBar as BarChart3, Users } from 'lucide-react-native';
+import { useState } from 'react';
+import RestaurantCard from '@/components/RestaurantCard';
+
+export default function DiscoverScreen() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [scoreView, setScoreView] = useState<'user' | 'group'>('user');
+
+  const filters = ['All', 'Nearby', 'Trending', 'New', 'Top Rated'];
+
+  const restaurants = [
+    {
+      id: '1',
+      name: 'The Garden Cafe',
+      cuisine: 'Mediterranean',
+      rating: 4.7,
+      reviews: 245,
+      price: '$$',
+      image: 'https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=400',
+      distance: '0.3 mi',
+      time: '15-25 min',
+      tags: ['Healthy', 'Vegetarian Friendly'],
+      scores: {
+        userScore: 8.5,
+        groupScore: 7.8,
+        overallRating: 4.7,
+        freshness: 9.2,
+        hygiene: 8.8,
+        popularity: 7.5,
+        value: 8.0,
+        service: 8.3,
+        ambiance: 8.7,
+        lastUpdated: '2024-01-15T10:30:00Z',
+      },
+    },
+    {
+      id: '2',
+      name: 'Spice Route',
+      cuisine: 'Indian',
+      rating: 4.6,
+      reviews: 182,
+      price: '$$$',
+      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
+      distance: '0.8 mi',
+      time: '20-30 min',
+      tags: ['Authentic', 'Spicy'],
+      scores: {
+        userScore: 7.2,
+        groupScore: 8.4,
+        overallRating: 4.6,
+        freshness: 8.5,
+        hygiene: 8.0,
+        popularity: 8.8,
+        value: 7.5,
+        service: 8.2,
+        ambiance: 7.9,
+        lastUpdated: '2024-01-15T09:15:00Z',
+      },
+    },
+    {
+      id: '3',
+      name: 'Sakura Sushi',
+      cuisine: 'Japanese',
+      rating: 4.8,
+      reviews: 324,
+      price: '$$$$',
+      image: 'https://images.pexels.com/photos/357573/pexels-photo-357573.jpeg?auto=compress&cs=tinysrgb&w=400',
+      distance: '1.2 mi',
+      time: '25-35 min',
+      tags: ['Fresh', 'Premium'],
+      scores: {
+        userScore: 9.1,
+        groupScore: 8.9,
+        overallRating: 4.8,
+        freshness: 9.5,
+        hygiene: 9.3,
+        popularity: 8.7,
+        value: 7.8,
+        service: 9.0,
+        ambiance: 9.2,
+        lastUpdated: '2024-01-15T11:45:00Z',
+      },
+    },
+    {
+      id: '4',
+      name: 'Bella Vista',
+      cuisine: 'Italian',
+      rating: 4.9,
+      reviews: 156,
+      price: '$$$',
+      image: 'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=400',
+      distance: '0.5 mi',
+      time: '18-28 min',
+      tags: ['Romantic', 'Wine Bar'],
+      scores: {
+        userScore: 6.8,
+        groupScore: 9.2,
+        overallRating: 4.9,
+        freshness: 8.9,
+        hygiene: 9.1,
+        popularity: 9.5,
+        value: 8.5,
+        service: 9.3,
+        ambiance: 9.7,
+        lastUpdated: '2024-01-15T08:20:00Z',
+      },
+    },
+  ];
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Discover</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={[styles.scoreToggle, scoreView === 'user' && styles.scoreToggleActive]}
+              onPress={() => setScoreView('user')}
+            >
+              <Text style={[styles.scoreToggleText, scoreView === 'user' && styles.scoreToggleTextActive]}>
+                Your Scores
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.scoreToggle, scoreView === 'group' && styles.scoreToggleActive]}
+              onPress={() => setScoreView('group')}
+            >
+              <Users size={16} color={scoreView === 'group' ? 'white' : '#6B7280'} />
+              <Text style={[styles.scoreToggleText, scoreView === 'group' && styles.scoreToggleTextActive]}>
+                Group
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.filterButton}>
+              <Filter size={20} color="#374151" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Search size={20} color="#6B7280" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search restaurants, cuisines..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+        </View>
+
+        {/* Score View Indicator */}
+        <View style={styles.scoreIndicator}>
+          <BarChart3 size={16} color="#FF6B6B" />
+          <Text style={styles.scoreIndicatorText}>
+            Showing {scoreView === 'user' ? 'your personal' : 'group consensus'} scores
+          </Text>
+        </View>
+
+        {/* Filters */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
+          {filters.map((filter) => (
+            <TouchableOpacity
+              key={filter}
+              style={[
+                styles.filterChip,
+                selectedFilter === filter && styles.filterChipActive,
+              ]}
+              onPress={() => setSelectedFilter(filter)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selectedFilter === filter && styles.filterChipTextActive,
+                ]}
+              >
+                {filter}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Map Button */}
+        <TouchableOpacity style={styles.mapButton}>
+          <MapPin size={20} color="#FF6B6B" />
+          <Text style={styles.mapButtonText}>View on Map</Text>
+        </TouchableOpacity>
+
+        {/* Restaurant List */}
+        <View style={styles.restaurantList}>
+          {restaurants.map((restaurant) => (
+            <RestaurantCard 
+              key={restaurant.id} 
+              restaurant={restaurant}
+              showGroupScore={scoreView === 'group'}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    color: '#111827',
+    fontFamily: 'Inter-Bold',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scoreToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'white',
+    gap: 4,
+  },
+  scoreToggleActive: {
+    backgroundColor: '#FF6B6B',
+  },
+  scoreToggleText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: 'Inter-Medium',
+  },
+  scoreToggleTextActive: {
+    color: 'white',
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+    fontFamily: 'Inter-Regular',
+  },
+  scoreIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    gap: 8,
+  },
+  scoreIndicatorText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontFamily: 'Inter-Medium',
+  },
+  filtersContainer: {
+    marginBottom: 20,
+  },
+  filterChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    marginLeft: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterChipActive: {
+    backgroundColor: '#FF6B6B',
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: '#374151',
+    fontFamily: 'Inter-Medium',
+  },
+  filterChipTextActive: {
+    color: 'white',
+  },
+  mapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  mapButtonText: {
+    fontSize: 16,
+    color: '#FF6B6B',
+    fontFamily: 'Inter-SemiBold',
+  },
+  restaurantList: {
+    paddingHorizontal: 20,
+  },
+});

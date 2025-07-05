@@ -1,10 +1,55 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+// ...existing code...
+// Add input/button styles to the StyleSheet
+
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Clock, Star, MapPin, Users, TrendingUp, ChartBar as BarChart3 } from 'lucide-react-native';
-import { router } from 'expo-router';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function HomeScreen() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+
+  // Handler for searching user by name
+  useEffect(() => {
+    const fetchUser = async () => {
+      setSearching(true);
+      const hardcodedName = 'KJ';
+      // Debug: log all users
+      const { data: allUsers, error: allError } = await supabase
+        .from('users')
+        .select('*');
+      console.log('All users:', allUsers, allError);
+
+      // Try ilike with wildcard for debugging (case-insensitive, partial match)
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('name', '%KJ%')
+        .limit(1);
+      console.log('User search result:', { userData, error });
+      setSearching(false);
+      if (error || !userData || userData.length === 0) {
+        setUser(null);
+        return;
+      }
+      const userObj = userData[0];
+      setUser({
+        ...userObj,
+        user_metadata: {
+          name: userObj.name,
+          profile_picture: userObj.profile_picture || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100',
+          email: userObj.email,
+        },
+      });
+    };
+    fetchUser();
+  }, []);
+
   const recentSessions = [
     {
       id: '1',
@@ -68,6 +113,18 @@ export default function HomeScreen() {
     return '#DC2626';
   };
 
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={styles.greeting}>Loading user...</Text>
+          {searching && <ActivityIndicator size="large" color="#FF6B6B" />}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -75,11 +132,11 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Good afternoon,</Text>
-            <Text style={styles.name}>Sarah! 👋</Text>
+            <Text style={styles.name}>{user?.user_metadata?.name ? `${user.user_metadata.name}! 👋` : 'Welcome! 👋'}</Text>
           </View>
           <TouchableOpacity style={styles.avatarContainer}>
             <Image
-              source={{ uri: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100' }}
+              source={{ uri: user?.user_metadata?.profile_picture || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100' }}
               style={styles.avatar}
             />
           </TouchableOpacity>
@@ -241,6 +298,30 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  input: {
+    width: '80%',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    fontFamily: 'Inter-Regular',
+    backgroundColor: '#F3F4F6',
+  },
+  button: {
+    backgroundColor: '#FF6B6B',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

@@ -1,29 +1,55 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Filter, Star, MapPin, Clock, ChartBar as BarChart3, Users, Maximize2, Minimize2, X } from 'lucide-react-native';
-import { useState, useRef, useEffect } from 'react';
+import { Search, Filter, Star, MapPin, Clock, ChartBar as BarChart3, Users, Maximize2, Minimize2, X, RefreshCw, TrendingUp, Navigation, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
 import RestaurantCard from '@/components/RestaurantCard';
 import Slider from '@react-native-community/slider';
 import * as Location from 'expo-location';
 import MapComponent from '@/components/MapComponent';
+import { fetchNearbyRestaurants, getPaginatedRestaurants, Restaurant } from '../../services/restaurantService';
 
 export default function DiscoverScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedFilter, setSelectedFilter] = useState('Trending');
   const [scoreView, setScoreView] = useState<'user' | 'group'>('user');
   const [showMapModal, setShowMapModal] = useState(false);
-  const [radius, setRadius] = useState(1000);
-  const radiusOptions = [1000, 2000, 5000, 10000, 25000]; // 1km, 2km, 5km, 10km, 25km
+  const [radius, setRadius] = useState(25000); // Default 25km to cover the whole city
+  const radiusOptions = [5000, 10000, 25000, 50000, 100000]; // 5km, 10km, 25km, 50km, 100km
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
   const [selectedDietary, setSelectedDietary] = useState<string[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [locationPermission, setLocationPermission] = useState<Location.LocationPermissionResponse | null>(null);
+  const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
+  const [displayedRestaurants, setDisplayedRestaurants] = useState<Restaurant[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMoreRestaurants, setHasMoreRestaurants] = useState(false);
+  const [isLoadingRestaurants, setIsLoadingRestaurants] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [noRestaurantsFound, setNoRestaurantsFound] = useState(false);
 
+  // Initialize location and load restaurants on component mount
   useEffect(() => {
-    requestLocationPermission();
+    initializeDiscoverPage();
   }, []);
+
+  const initializeDiscoverPage = async () => {
+    try {
+      setIsInitialLoading(true);
+      await requestLocationPermission();
+    } catch (error) {
+      console.error('Error initializing discover page:', error);
+      setIsInitialLoading(false);
+    }
+  };
+
+  // Load restaurants when location changes
+  useEffect(() => {
+    if (location) {
+      loadInitialRestaurants();
+    }
+  }, [location]);
 
   const requestLocationPermission = async () => {
     try {
@@ -31,13 +57,80 @@ export default function DiscoverScreen() {
       setLocationPermission({ status } as Location.LocationPermissionResponse);
       
       if (status === 'granted') {
+        console.log('Location permission granted, getting current location...');
         const currentLocation = await Location.getCurrentPositionAsync({});
+        console.log('Current location:', currentLocation.coords);
         setLocation(currentLocation);
+      } else {
+        setIsInitialLoading(false);
+        Alert.alert(
+          'Location Permission Required',
+          'BiteBuddies needs location access to show nearby restaurants. Please enable location services in settings.',
+          [
+            { text: 'OK', onPress: () => {} }
+          ]
+        );
       }
     } catch (error) {
       console.error('Error requesting location permission:', error);
+      setIsInitialLoading(false);
       Alert.alert('Location Error', 'Unable to get your location. Please enable location services.');
     }
+  };
+
+  const loadInitialRestaurants = async () => {
+    if (!location) return;
+    
+    try {
+      setIsLoadingRestaurants(true);
+      console.log('Loading initial restaurants...');
+      
+      const restaurants = await fetchNearbyRestaurants(
+        location,
+        radius,
+        selectedCuisines,
+        selectedDietary
+      );
+      
+      console.log(`Loaded ${restaurants.length} restaurants`);
+      setAllRestaurants(restaurants);
+      
+      // Get first page of restaurants
+      const { restaurants: firstPage, hasMore } = getPaginatedRestaurants(restaurants, 0, 5);
+      setDisplayedRestaurants(firstPage);
+      setHasMoreRestaurants(hasMore);
+      setCurrentPage(0);
+      setNoRestaurantsFound(restaurants.length === 0);
+    } catch (error) {
+      console.error('Error loading initial restaurants:', error);
+      setNoRestaurantsFound(true);
+    } finally {
+      setIsLoadingRestaurants(false);
+      setIsInitialLoading(false);
+    }
+  };
+
+  const loadMoreRestaurants = async () => {
+    if (!hasMoreRestaurants || isLoadingRestaurants) return;
+    
+    try {
+      setIsLoadingRestaurants(true);
+      const nextPage = currentPage + 1;
+      const { restaurants: nextPageRestaurants, hasMore } = getPaginatedRestaurants(allRestaurants, nextPage, 5);
+      
+      setDisplayedRestaurants(prev => [...prev, ...nextPageRestaurants]);
+      setHasMoreRestaurants(hasMore);
+      setCurrentPage(nextPage);
+    } catch (error) {
+      console.error('Error loading more restaurants:', error);
+    } finally {
+      setIsLoadingRestaurants(false);
+    }
+  };
+
+  const refreshRestaurants = async () => {
+    if (!location) return;
+    await loadInitialRestaurants();
   };
 
   const openFindNearby = async () => {
@@ -72,106 +165,36 @@ export default function DiscoverScreen() {
     setShowMapModal(false);
   };
 
-  const filters = ['All', 'Nearby', 'Trending', 'New', 'Top Rated'];
+  const applyFilters = async () => {
+    if (!location) return;
+    
+    try {
+      setIsLoadingRestaurants(true);
+      console.log('Applying filters:', { selectedCuisines, selectedDietary, radius });
+      
+      const restaurants = await fetchNearbyRestaurants(
+        location,
+        radius,
+        selectedCuisines,
+        selectedDietary
+      );
+      
+      setAllRestaurants(restaurants);
+      
+      // Get first page of filtered restaurants
+      const { restaurants: firstPage, hasMore } = getPaginatedRestaurants(restaurants, 0, 5);
+      setDisplayedRestaurants(firstPage);
+      setHasMoreRestaurants(hasMore);
+      setCurrentPage(0);
+      setNoRestaurantsFound(restaurants.length === 0);
+    } catch (error) {
+      console.error('Error applying filters:', error);
+    } finally {
+      setIsLoadingRestaurants(false);
+    }
+  };
 
-  const restaurants = [
-    {
-      id: '1',
-      name: 'The Garden Cafe',
-      cuisine: 'Mediterranean',
-      rating: 4.7,
-      reviews: 245,
-      price: '$$',
-      image: 'https://images.pexels.com/photos/1267320/pexels-photo-1267320.jpeg?auto=compress&cs=tinysrgb&w=400',
-      distance: '0.3 mi',
-      time: '15-25 min',
-      tags: ['Healthy', 'Vegetarian Friendly'],
-      scores: {
-        userScore: 8.5,
-        groupScore: 7.8,
-        overallRating: 4.7,
-        freshness: 9.2,
-        hygiene: 8.8,
-        popularity: 7.5,
-        value: 8.0,
-        service: 8.3,
-        ambiance: 8.7,
-        lastUpdated: '2024-01-15T10:30:00Z',
-      },
-    },
-    {
-      id: '2',
-      name: 'Spice Route',
-      cuisine: 'Indian',
-      rating: 4.6,
-      reviews: 182,
-      price: '$$$',
-      image: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400',
-      distance: '0.8 mi',
-      time: '20-30 min',
-      tags: ['Authentic', 'Spicy'],
-      scores: {
-        userScore: 7.2,
-        groupScore: 8.4,
-        overallRating: 4.6,
-        freshness: 8.5,
-        hygiene: 8.0,
-        popularity: 8.8,
-        value: 7.5,
-        service: 8.2,
-        ambiance: 7.9,
-        lastUpdated: '2024-01-15T09:15:00Z',
-      },
-    },
-    {
-      id: '3',
-      name: 'Sakura Sushi',
-      cuisine: 'Japanese',
-      rating: 4.8,
-      reviews: 324,
-      price: '$$$$',
-      image: 'https://images.pexels.com/photos/357573/pexels-photo-357573.jpeg?auto=compress&cs=tinysrgb&w=400',
-      distance: '1.2 mi',
-      time: '25-35 min',
-      tags: ['Fresh', 'Premium'],
-      scores: {
-        userScore: 9.1,
-        groupScore: 8.9,
-        overallRating: 4.8,
-        freshness: 9.5,
-        hygiene: 9.3,
-        popularity: 8.7,
-        value: 7.8,
-        service: 9.0,
-        ambiance: 9.2,
-        lastUpdated: '2024-01-15T11:45:00Z',
-      },
-    },
-    {
-      id: '4',
-      name: 'Bella Vista',
-      cuisine: 'Italian',
-      rating: 4.9,
-      reviews: 156,
-      price: '$$$',
-      image: 'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=400',
-      distance: '0.5 mi',
-      time: '18-28 min',
-      tags: ['Romantic', 'Wine Bar'],
-      scores: {
-        userScore: 6.8,
-        groupScore: 9.2,
-        overallRating: 4.9,
-        freshness: 8.9,
-        hygiene: 9.1,
-        popularity: 9.5,
-        value: 8.5,
-        service: 9.3,
-        ambiance: 9.7,
-        lastUpdated: '2024-01-15T08:20:00Z',
-      },
-    },
-  ];
+  const filters = ['Trending', 'New', 'Top Rated'];
 
   const cuisines = [
     'Italian', 'Chinese', 'Japanese', 'Indian', 'Mexican', 'Thai',
@@ -189,6 +212,7 @@ export default function DiscoverScreen() {
         : [...prev, cuisine]
     );
   };
+
   const toggleDietary = (dietary: string) => {
     setSelectedDietary(prev =>
       prev.includes(dietary)
@@ -197,12 +221,96 @@ export default function DiscoverScreen() {
     );
   };
 
-  // Filter restaurants by cuisine/dietary (mock logic)
-  const filteredRestaurants = restaurants.filter(r => {
-    const cuisineMatch = selectedCuisines.length === 0 || selectedCuisines.includes(r.cuisine);
-    const dietaryMatch = selectedDietary.length === 0 || (r.tags && selectedDietary.some(d => r.tags.includes(d)));
-    return cuisineMatch && dietaryMatch;
+  // Apply filter type and search query to displayed restaurants
+  const filteredDisplayedRestaurants = displayedRestaurants.filter(restaurant => {
+    // First apply the filter type
+    let passesFilter = true;
+    
+    switch (selectedFilter) {
+      case 'Trending':
+        // Show restaurants with high review counts and good overall scores
+        passesFilter = restaurant.reviews >= 100 && restaurant.scores.overallRating >= 75;
+        break;
+      case 'New':
+        // TODO: Implement proper "New" filter by cross-referencing with:
+        // 1. User's visit history (restaurants not yet visited)
+        // 2. Recently opened restaurants in the city
+        // This would require:
+        // - A user visits/history table in the database
+        // - Restaurant opening dates or "new to city" flags
+        // - Cross-reference current restaurants with user's visited restaurants
+        // For now, show restaurants with lower popularity (indicating they're less visited/newer)
+        passesFilter = restaurant.scores.popularity <= 40;
+        break;
+      case 'Top Rated':
+        // Show restaurants with rating 4.5 or higher
+        passesFilter = restaurant.rating >= 4.5;
+        break;
+      default:
+        passesFilter = true;
+    }
+    
+    if (!passesFilter) return false;
+    
+    // Then apply search query filter
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return restaurant.name.toLowerCase().includes(query) ||
+           restaurant.cuisine.toLowerCase().includes(query) ||
+           restaurant.tags.some(tag => tag.toLowerCase().includes(query));
+  }).sort((a, b) => {
+    // Sort based on the selected filter
+    switch (selectedFilter) {
+      case 'Trending':
+        // Sort by combination of review count and overall score
+        const aTrendingScore = (a.reviews * 0.3) + (a.scores.overallRating * 0.7);
+        const bTrendingScore = (b.reviews * 0.3) + (b.scores.overallRating * 0.7);
+        return bTrendingScore - aTrendingScore;
+      case 'New':
+        // Sort by lowest popularity first (indicating newer/less visited)
+        return a.scores.popularity - b.scores.popularity;
+      case 'Top Rated':
+        // Sort by highest rating first, then by overall score
+        if (b.rating !== a.rating) {
+          return b.rating - a.rating;
+        }
+        return b.scores.overallRating - a.scores.overallRating;
+      default:
+        // Default to trending sorting
+        const aDefaultScore = (a.reviews * 0.3) + (a.scores.overallRating * 0.7);
+        const bDefaultScore = (b.reviews * 0.3) + (b.scores.overallRating * 0.7);
+        return bDefaultScore - aDefaultScore;
+    }
   });
+
+  if (isInitialLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF6B6B" />
+          <Text style={styles.loadingText}>Getting your location...</Text>
+          <Text style={styles.loadingSubtext}>Finding nearby restaurants</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (locationPermission?.status !== 'granted') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <MapPin size={48} color="#FF6B6B" />
+          <Text style={styles.errorTitle}>Location Permission Required</Text>
+          <Text style={styles.errorText}>
+            BiteBuddies needs location access to show nearby restaurants and help you discover great dining spots.
+          </Text>
+          <TouchableOpacity style={styles.enableLocationButton} onPress={requestLocationPermission}>
+            <Text style={styles.enableLocationText}>Enable Location</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -228,8 +336,8 @@ export default function DiscoverScreen() {
                 Group
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.filterButton}>
-              <Filter size={20} color="#374151" />
+            <TouchableOpacity style={styles.filterButton} onPress={refreshRestaurants}>
+              <RefreshCw size={20} color="#374151" />
             </TouchableOpacity>
           </View>
         </View>
@@ -256,27 +364,52 @@ export default function DiscoverScreen() {
           </Text>
         </View>
 
+        {/* Filter Results Indicator */}
+        <View style={styles.filterResultsIndicator}>
+          <Text style={styles.filterResultsText}>
+            {filteredDisplayedRestaurants.length} {selectedFilter.toLowerCase()} restaurants found
+          </Text>
+        </View>
+
         {/* Filters */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-          {filters.map((filter) => (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterChip,
-                selectedFilter === filter && styles.filterChipActive,
-              ]}
-              onPress={() => setSelectedFilter(filter)}
-            >
-              <Text
+          {filters.map((filter) => {
+                         const getFilterIcon = () => {
+               switch (filter) {
+                 case 'Trending':
+                   return <TrendingUp size={14} color={selectedFilter === filter ? 'white' : '#6B7280'} />;
+                 case 'New':
+                   return <Sparkles size={14} color={selectedFilter === filter ? 'white' : '#6B7280'} />;
+                 case 'Top Rated':
+                   return <Star size={14} color={selectedFilter === filter ? 'white' : '#6B7280'} />;
+                 default:
+                   return null;
+               }
+             };
+
+            return (
+              <TouchableOpacity
+                key={filter}
                 style={[
-                  styles.filterChipText,
-                  selectedFilter === filter && styles.filterChipTextActive,
+                  styles.filterChip,
+                  selectedFilter === filter && styles.filterChipActive,
                 ]}
+                onPress={() => setSelectedFilter(filter)}
               >
-                {filter}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.filterChipContent}>
+                  {getFilterIcon()}
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedFilter === filter && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {filter}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* Map Button */}
@@ -287,13 +420,48 @@ export default function DiscoverScreen() {
 
         {/* Restaurant List */}
         <View style={styles.restaurantList}>
-          {restaurants.map((restaurant) => (
-            <RestaurantCard 
-              key={restaurant.id} 
-              restaurant={restaurant}
-              showGroupScore={scoreView === 'group'}
-            />
-          ))}
+          {isLoadingRestaurants && displayedRestaurants.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#FF6B6B" />
+              <Text style={styles.loadingText}>Finding nearby restaurants...</Text>
+            </View>
+          ) : noRestaurantsFound ? (
+            <View style={styles.noResultsContainer}>
+              <Text style={styles.noResultsTitle}>No restaurants found</Text>
+              <Text style={styles.noResultsText}>
+                Try adjusting your search radius or filters to find more options.
+              </Text>
+              <TouchableOpacity style={styles.refreshButton} onPress={refreshRestaurants}>
+                <RefreshCw size={16} color="#FF6B6B" />
+                <Text style={styles.refreshButtonText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {filteredDisplayedRestaurants.map((restaurant) => (
+                <RestaurantCard 
+                  key={restaurant.id} 
+                  restaurant={restaurant}
+                  showGroupScore={scoreView === 'group'}
+                />
+              ))}
+              
+              {/* Load More Button */}
+              {hasMoreRestaurants && (
+                <TouchableOpacity 
+                  style={styles.loadMoreButton} 
+                  onPress={loadMoreRestaurants}
+                  disabled={isLoadingRestaurants}
+                >
+                  {isLoadingRestaurants ? (
+                    <ActivityIndicator size="small" color="#FF6B6B" />
+                  ) : (
+                    <Text style={styles.loadMoreText}>View More Restaurants</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
       </ScrollView>
 
@@ -320,7 +488,7 @@ export default function DiscoverScreen() {
                 <MapComponent 
                   location={location} 
                   radius={radius} 
-                  filteredRestaurants={filteredRestaurants} 
+                  filteredRestaurants={displayedRestaurants} 
                 />
               ) : (
                 <View style={{ flex: 1, backgroundColor: '#E8F4FD', justifyContent: 'center', alignItems: 'center' }}>
@@ -396,11 +564,40 @@ export default function DiscoverScreen() {
                 ))}
               </ScrollView>
               
-              {/* Restaurant List */}
-              <Text style={{ fontWeight: 'bold', fontSize: 16, marginVertical: 8 }}>Nearby Restaurants</Text>
-              {filteredRestaurants.map((restaurant) => (
+              {/* Apply Filters Button */}
+              <TouchableOpacity 
+                style={styles.applyFiltersButton} 
+                onPress={applyFilters}
+                disabled={isLoadingRestaurants}
+              >
+                {isLoadingRestaurants ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.applyFiltersText}>Apply Filters</Text>
+                )}
+              </TouchableOpacity>
+              
+              {/* Restaurant List in Modal */}
+              <Text style={{ fontWeight: 'bold', fontSize: 16, marginVertical: 16 }}>
+                Nearby Restaurants ({displayedRestaurants.length})
+              </Text>
+              {displayedRestaurants.map((restaurant) => (
                 <RestaurantCard key={restaurant.id} restaurant={restaurant} showGroupScore={scoreView === 'group'} />
               ))}
+              
+              {hasMoreRestaurants && (
+                <TouchableOpacity 
+                  style={styles.loadMoreButton} 
+                  onPress={loadMoreRestaurants}
+                  disabled={isLoadingRestaurants}
+                >
+                  {isLoadingRestaurants ? (
+                    <ActivityIndicator size="small" color="#FF6B6B" />
+                  ) : (
+                    <Text style={styles.loadMoreText}>View More Restaurants</Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -413,6 +610,57 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#111827',
+    marginTop: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 8,
+    fontFamily: 'Inter-Regular',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    fontSize: 24,
+    color: '#111827',
+    marginTop: 16,
+    fontFamily: 'Inter-Bold',
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'Inter-Regular',
+  },
+  enableLocationButton: {
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  enableLocationText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
   },
   header: {
     flexDirection: 'row',
@@ -501,6 +749,15 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontFamily: 'Inter-Medium',
   },
+  filterResultsIndicator: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  filterResultsText: {
+    fontSize: 13,
+    color: '#FF6B6B',
+    fontFamily: 'Inter-Medium',
+  },
   filtersContainer: {
     marginBottom: 20,
   },
@@ -518,6 +775,11 @@ const styles = StyleSheet.create({
   },
   filterChipActive: {
     backgroundColor: '#FF6B6B',
+  },
+  filterChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   filterChipText: {
     fontSize: 14,
@@ -550,5 +812,65 @@ const styles = StyleSheet.create({
   },
   restaurantList: {
     paddingHorizontal: 20,
+  },
+  noResultsContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noResultsTitle: {
+    fontSize: 20,
+    color: '#111827',
+    fontFamily: 'Inter-Bold',
+    marginBottom: 8,
+  },
+  noResultsText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 20,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FF6B6B',
+  },
+  refreshButtonText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  loadMoreButton: {
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  loadMoreText: {
+    color: '#FF6B6B',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  applyFiltersButton: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  applyFiltersText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
   },
 });

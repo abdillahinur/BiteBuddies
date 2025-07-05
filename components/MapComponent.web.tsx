@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
@@ -10,6 +10,14 @@ interface MapComponentProps {
 }
 
 export default function MapComponent({ location, radius, filteredRestaurants }: MapComponentProps) {
+  // Calculate circle size based on radius (scale it to fit the view)
+  const circleSize = useMemo(() => {
+    // Base size calculation: map radius in meters to pixels
+    // 1km = 40px, 2km = 80px, 5km = 160px, 10km = 240px, 25km = 300px (max)
+    const baseSize = Math.min(300, Math.max(40, (radius / 1000) * 40));
+    return baseSize;
+  }, [radius]);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#E8F4FD', position: 'relative' }}>
       {/* Map Background Grid */}
@@ -63,32 +71,37 @@ export default function MapComponent({ location, radius, filteredRestaurants }: 
           shadowOpacity: 0.25,
           shadowRadius: 3.84,
           elevation: 5,
+          zIndex: 20,
         }} />
         <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>
           📍 You are here{'\n'}({location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)})
         </Text>
         
-        {/* Radius indicator */}
+        {/* Dynamic Radius Circle */}
         <View style={{
           position: 'absolute',
-          width: Math.min(200, Math.max(60, radius / 50)), // Scale from 60px to 200px max
-          height: Math.min(200, Math.max(60, radius / 50)),
-          borderRadius: Math.min(100, Math.max(30, radius / 100)),
+          width: circleSize * 2,
+          height: circleSize * 2,
+          borderRadius: circleSize,
           borderWidth: 2,
           borderColor: 'rgba(255, 107, 107, 0.5)',
           backgroundColor: 'rgba(255, 107, 107, 0.1)',
           top: '50%',
           left: '50%',
-          marginTop: -Math.min(100, Math.max(30, radius / 100)),
-          marginLeft: -Math.min(100, Math.max(30, radius / 100)),
+          marginTop: -circleSize,
+          marginLeft: -circleSize,
+          zIndex: 1,
         }} />
         
-        {/* Restaurant Markers */}
+        {/* Restaurant Markers - Show all displayed restaurants */}
         {filteredRestaurants.map((restaurant, index) => {
+          // Position markers within the circle based on their actual distance
+          const actualDistance = parseFloat(restaurant.distance) * 1000; // Convert km to meters
+          const normalizedDistance = Math.min(actualDistance / radius, 0.9); // Cap at 90% of radius
           const angle = (index * 60) * (Math.PI / 180); // Convert to radians
-          const distance = 80 + (index * 20);
-          const x = Math.cos(angle) * distance;
-          const y = Math.sin(angle) * distance;
+          const markerDistance = normalizedDistance * circleSize;
+          const x = Math.cos(angle) * markerDistance;
+          const y = Math.sin(angle) * markerDistance;
           
           return (
             <View 
@@ -97,36 +110,43 @@ export default function MapComponent({ location, radius, filteredRestaurants }: 
                 position: 'absolute', 
                 left: '50%',
                 top: '50%',
-                marginLeft: x - 25,
-                marginTop: y - 15,
+                marginLeft: x - 30,
+                marginTop: y - 20,
                 alignItems: 'center',
                 zIndex: 10,
               }}
             >
               <View style={{ 
                 backgroundColor: '#FF6B6B', 
-                borderRadius: 12, 
-                paddingHorizontal: 8, 
-                paddingVertical: 4,
+                borderRadius: 16, 
+                paddingHorizontal: 10, 
+                paddingVertical: 6,
                 borderWidth: 2,
                 borderColor: 'white',
                 shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.2,
-                shadowRadius: 2,
-                elevation: 3,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3,
+                elevation: 5,
+                minWidth: 45,
+                alignItems: 'center',
               }}>
-                <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>{restaurant.rating}</Text>
+                <Text style={{ color: 'white', fontSize: 11, fontWeight: 'bold' }}>{restaurant.rating}</Text>
+                <Text style={{ color: 'white', fontSize: 7, fontWeight: '600' }}>
+                  {restaurant.scores?.overallRating || Math.round(restaurant.rating * 20)}
+                </Text>
               </View>
               <Text style={{ 
                 fontSize: 8, 
                 color: '#374151', 
                 marginTop: 2, 
-                maxWidth: 50, 
+                maxWidth: 60, 
                 textAlign: 'center',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                paddingHorizontal: 2,
-                borderRadius: 2,
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                paddingHorizontal: 3,
+                paddingVertical: 1,
+                borderRadius: 3,
+                fontWeight: '600',
               }}>
                 {restaurant.name}
               </Text>
@@ -144,6 +164,7 @@ export default function MapComponent({ location, radius, filteredRestaurants }: 
           paddingHorizontal: 8,
           paddingVertical: 4,
           borderRadius: 12,
+          zIndex: 15,
         }}>
           🔍 Search radius: {radius / 1000}km
         </Text>

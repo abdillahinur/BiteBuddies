@@ -42,7 +42,7 @@ export default function HomeScreen() {
         ...userObj,
         user_metadata: {
           name: userObj.name,
-          profile_picture: userObj.profile_picture || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100',
+          profile_picture: userObj.profile_picture,
           email: userObj.email,
         },
       });
@@ -135,10 +135,18 @@ export default function HomeScreen() {
             <Text style={styles.name}>{user?.user_metadata?.name ? `${user.user_metadata.name}! 👋` : 'Welcome! 👋'}</Text>
           </View>
           <TouchableOpacity style={styles.avatarContainer}>
-            <Image
-              source={{ uri: user?.user_metadata?.profile_picture || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100' }}
-              style={styles.avatar}
-            />
+            {user?.user_metadata?.profile_picture ? (
+              <Image
+                source={{ uri: user.user_metadata.profile_picture }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: '#FF6B6B', justifyContent: 'center', alignItems: 'center' }]}> 
+                <Text style={{ color: 'white', fontSize: 24, fontFamily: 'Inter-Bold' }}>
+                  {user?.user_metadata?.name && user.user_metadata.name.length > 0 ? user.user_metadata.name[0].toUpperCase() : '?'}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 

@@ -1,23 +1,25 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Settings, CreditCard as Edit, Star, Users, MapPin, Share2, Bell, Shield, LogOut } from 'lucide-react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function ProfileScreen() {
+
   const [notifications, setNotifications] = useState(true);
   const [locationSharing, setLocationSharing] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Optionally, you can fetch stats and preferences from Supabase as well
   const stats = [
     { label: 'Sessions', value: '24', icon: Users },
     { label: 'Reviews', value: '18', icon: Star },
     { label: 'Places', value: '47', icon: MapPin },
   ];
 
-  const preferences = [
-    { category: 'Dietary', items: ['Vegetarian', 'Gluten-Free'] },
-    { category: 'Cuisine', items: ['Italian', 'Japanese', 'Mediterranean'] },
-    { category: 'Price Range', items: ['$$ - $$$'] },
-  ];
+  const [preferences, setPreferences] = useState<any>(null);
 
   const menuItems = [
     { icon: Bell, title: 'Notifications', subtitle: 'Session updates and reminders', hasSwitch: true, value: notifications, onToggle: setNotifications },
@@ -27,6 +29,46 @@ export default function ProfileScreen() {
     { icon: Shield, title: 'Privacy', subtitle: 'Manage your privacy settings' },
     { icon: Settings, title: 'Settings', subtitle: 'App preferences and more' },
   ];
+
+  useEffect(() => {
+    const fetchUserAndPreferences = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch user
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('name', 'KJ')
+          .single();
+        if (userError) throw userError;
+        setUser(userData);
+
+        // Fetch preferences for user
+        if (userData && userData.id) {
+          const { data: prefData, error: prefError } = await supabase
+            .from('preferences')
+            .select('*')
+            .eq('user_id', userData.id)
+            .single();
+          if (prefError) {
+            setPreferences(null);
+          } else {
+            setPreferences(prefData);
+          }
+        } else {
+          setPreferences(null);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch user');
+        setUser(null);
+        setPreferences(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUserAndPreferences();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -41,16 +83,36 @@ export default function ProfileScreen() {
 
         {/* Profile Info */}
         <View style={styles.profileSection}>
-          <View style={styles.profileImageContainer}>
-            <Image
-              source={{ uri: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=200' }}
-              style={styles.profileImage}
-            />
-            <View style={styles.onlineIndicator} />
-          </View>
-          <Text style={styles.name}>Sarah Johnson</Text>
-          <Text style={styles.email}>sarah.johnson@email.com</Text>
-          <Text style={styles.joinDate}>Member since March 2024</Text>
+          {loading ? (
+            <Text>Loading...</Text>
+          ) : error ? (
+            <Text style={{ color: 'red' }}>{error}</Text>
+          ) : user ? (
+            <>
+              <View style={styles.profileImageContainer}>
+                {user.avatar_url || user.profile_picture ? (
+                  <Image
+                    source={{ uri: user.avatar_url || user.profile_picture }}
+                    style={styles.profileImage}
+                  />
+                ) : (
+                  <View style={[styles.profileImage, { backgroundColor: '#FF6B6B', justifyContent: 'center', alignItems: 'center' }]}> 
+                    <Text style={{ color: 'white', fontSize: 40, fontFamily: 'Inter-Bold' }}>
+                      {user.name && user.name.length > 0 ? user.name[0].toUpperCase() : '?'}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.onlineIndicator} />
+              </View>
+              <Text style={styles.name}>{user.name || 'No Name'}</Text>
+              <Text style={styles.email}>{user.email || 'No Email'}</Text>
+              <Text style={styles.joinDate}>
+                Member since {user.created_at ? new Date(user.created_at).toLocaleString('default', { month: 'long', year: 'numeric' }) : 'Unknown'}
+              </Text>
+            </>
+          ) : (
+            <Text>User not found</Text>
+          )}
         </View>
 
         {/* Stats */}
@@ -67,18 +129,78 @@ export default function ProfileScreen() {
         {/* Preferences */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-          {preferences.map((pref, index) => (
-            <View key={index} style={styles.preferenceCard}>
-              <Text style={styles.preferenceCategory}>{pref.category}</Text>
-              <View style={styles.preferenceItems}>
-                {pref.items.map((item, itemIndex) => (
-                  <View key={itemIndex} style={styles.preferenceTag}>
-                    <Text style={styles.preferenceTagText}>{item}</Text>
+          {loading ? (
+            <Text>Loading...</Text>
+          ) : preferences ? (
+            <>
+              {preferences.dietary_restrictions && preferences.dietary_restrictions.length > 0 && (
+                <View style={styles.preferenceCard}>
+                  <Text style={styles.preferenceCategory}>Dietary Restrictions</Text>
+                  <View style={styles.preferenceItems}>
+                    {preferences.dietary_restrictions.map((item: string, idx: number) => (
+                      <View key={idx} style={styles.preferenceTag}>
+                        <Text style={styles.preferenceTagText}>{item}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
+                </View>
+              )}
+              {preferences.cuisine_likes && preferences.cuisine_likes.length > 0 && (
+                <View style={styles.preferenceCard}>
+                  <Text style={styles.preferenceCategory}>Cuisine Likes</Text>
+                  <View style={styles.preferenceItems}>
+                    {preferences.cuisine_likes.map((item: string, idx: number) => (
+                      <View key={idx} style={styles.preferenceTag}>
+                        <Text style={styles.preferenceTagText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {preferences.cuisine_dislikes && preferences.cuisine_dislikes.length > 0 && (
+                <View style={styles.preferenceCard}>
+                  <Text style={styles.preferenceCategory}>Cuisine Dislikes</Text>
+                  <View style={styles.preferenceItems}>
+                    {preferences.cuisine_dislikes.map((item: string, idx: number) => (
+                      <View key={idx} style={styles.preferenceTag}>
+                        <Text style={styles.preferenceTagText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {preferences.allergies && preferences.allergies.length > 0 && (
+                <View style={styles.preferenceCard}>
+                  <Text style={styles.preferenceCategory}>Allergies</Text>
+                  <View style={styles.preferenceItems}>
+                    {preferences.allergies.map((item: string, idx: number) => (
+                      <View key={idx} style={styles.preferenceTag}>
+                        <Text style={styles.preferenceTagText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              <View style={styles.preferenceCard}>
+                <Text style={styles.preferenceCategory}>Price Range</Text>
+                <View style={styles.preferenceItems}>
+                  <View style={styles.preferenceTag}>
+                    <Text style={styles.preferenceTagText}>{preferences.price_range ? `$${preferences.price_range}` : 'N/A'}</Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          ))}
+              <View style={styles.preferenceCard}>
+                <Text style={styles.preferenceCategory}>Distance Range (km)</Text>
+                <View style={styles.preferenceItems}>
+                  <View style={styles.preferenceTag}>
+                    <Text style={styles.preferenceTagText}>{preferences.distance_range_km ?? 'N/A'}</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          ) : (
+            <Text>No preferences found.</Text>
+          )}
         </View>
 
         {/* Menu Items */}

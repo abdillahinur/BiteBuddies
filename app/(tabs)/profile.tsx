@@ -22,8 +22,8 @@ export default function ProfileScreen() {
   const menuItems = [
     { icon: Bell, title: 'Notifications', subtitle: 'Session updates and reminders', hasSwitch: true, value: notifications, onToggle: setNotifications },
     { icon: MapPin, title: 'Location Sharing', subtitle: 'Share location with friends', hasSwitch: true, value: locationSharing, onToggle: setLocationSharing },
-    { icon: Share2, title: 'Invite Friends', subtitle: 'Share DineCircle with friends' },
-    { icon: Star, title: 'Rate App', subtitle: 'Help us improve DineCircle' },
+    { icon: Share2, title: 'Invite Friends', subtitle: 'Share BiteBuddies with friends' },
+    { icon: Star, title: 'Rate App', subtitle: 'Help us improve BiteBuddies' },
     { icon: Shield, title: 'Privacy', subtitle: 'Manage your privacy settings' },
     { icon: Settings, title: 'Settings', subtitle: 'App preferences and more' },
   ];
@@ -115,7 +115,7 @@ export default function ProfileScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>DineCircle v1.0.0</Text>
+          <Text style={styles.footerText}>BiteBuddies v1.0.0</Text>
           <Text style={styles.footerText}>Made with ❤️ for food lovers</Text>
         </View>
       </ScrollView>

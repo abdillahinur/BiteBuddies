@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, Clock, Star, MapPin, Users, TrendingUp, ChartBar as BarChart3 } from 'lucide-react-native';
+import { router } from 'expo-router';
 
 export default function HomeScreen() {
   const recentSessions = [
@@ -97,7 +98,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
           
           <View style={styles.secondaryActions}>
-            <TouchableOpacity style={styles.secondaryAction}>
+            <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/discover')}>
               <MapPin size={20} color="#4ECDC4" />
               <Text style={styles.secondaryActionText}>Find Nearby</Text>
             </TouchableOpacity>
